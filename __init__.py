@@ -2,6 +2,7 @@ from flask import Flask, request, render_template, redirect, url_for
 import os
 import base64
 import hashlib
+import sqlite3
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 app = Flask(__name__)
@@ -11,6 +12,26 @@ def derive_key(password: str) -> bytes:
     Dérive une clé de 256 bits (32 octets) à partir du mot de passe en utilisant SHA-256.
     """
     return hashlib.sha256(password.encode()).digest()
+
+def init_db():
+    """
+    Initialise la base de données et crée la table 'contacts' si elle n'existe pas déjà.
+    """
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS contacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL,
+            prenom TEXT NOT NULL,
+            numero TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+# Initialiser la base de données au démarrage
+init_db()
 
 @app.route('/')
 def index():
@@ -26,10 +47,8 @@ def encrypt():
         
         key = derive_key(password)
         aesgcm = AESGCM(key)
-        # Génération d'un nonce aléatoire (12 octets recommandés pour AESGCM)
         nonce = os.urandom(12)
         ciphertext = aesgcm.encrypt(nonce, plaintext.encode(), None)
-        # Le token contiendra le nonce suivi du ciphertext, encodé en base64
         token_bytes = nonce + ciphertext
         token = base64.urlsafe_b64encode(token_bytes).decode()
         
@@ -48,7 +67,6 @@ def decrypt():
         key = derive_key(password)
         try:
             token_bytes = base64.urlsafe_b64decode(token.encode())
-            # Extraction du nonce (12 octets) et du ciphertext (reste)
             nonce = token_bytes[:12]
             ciphertext = token_bytes[12:]
             aesgcm = AESGCM(key)
