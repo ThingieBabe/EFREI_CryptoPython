@@ -59,5 +59,25 @@ def decrypt():
     
     return render_template('decrypt_form.html')
 
+@app.route('/contacts', methods=['GET', 'POST'])
+def contacts():
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    
+    if request.method == 'POST':
+        nom = request.form.get('nom')
+        prenom = request.form.get('prenom')
+        numero = request.form.get('numero')
+        
+        if nom and prenom and numero:
+            cursor.execute("INSERT INTO contacts (nom, prenom, numero) VALUES (?, ?, ?)", (nom, prenom, numero))
+            conn.commit()
+        return redirect(url_for('contacts'))
+    
+    cursor.execute("SELECT * FROM contacts")
+    contacts = cursor.fetchall()
+    conn.close()
+    return render_template('contacts.html', contacts=contacts)
+
 if __name__ == '__main__':
     app.run(debug=True)
