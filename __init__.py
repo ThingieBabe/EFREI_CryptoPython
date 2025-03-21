@@ -1,46 +1,54 @@
 from cryptography.fernet import Fernet
-from flask import Flask, render_template_string, render_template, jsonify
-from flask import render_template
-from flask import json
-from urllib.request import urlopen
-import sqlite3
-import os
+from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
-
-# Fonction pour charger ou générer une clé
-def load_key():
-    if os.path.exists("secret.key"):
-        with open("secret.key", "rb") as key_file:
-            return key_file.read()  # Charge la clé existante
-    else:
-        key = Fernet.generate_key()  # Génère une nouvelle clé
-        with open("secret.key", "wb") as key_file:
-            key_file.write(key)  # Sauvegarde la clé dans un fichier
-        return key
-
-key = load_key()
-f = Fernet(key)
 
 @app.route('/')
 def hello_world():
     return render_template('hello.html')
 
-@app.route('/encrypt/<string:valeur>')
-def encryptage(valeur):
-    valeur_bytes = valeur.encode()  # Conversion str -> bytes
-    token = f.encrypt(valeur_bytes)  # Encrypt la valeur
-    return f"Valeur encryptée : {token.decode()}"  # Retourne le token en str
+@app.route('/encrypt', methods=['POST'])
+def encryptage():
+    valeur = request.form.get('valeur')
+    key = request.form.get('key')
 
-@app.route('/decrypt/<string:token>')
-def decryptage(token):
+    if not valeur or not key:
+        return "Veuillez fournir une valeur et une clé pour l'encryptage.", 400
+
     try:
-        token_bytes = token.encode()  # Conversion str -> bytes
-        valeur_bytes = f.decrypt(token_bytes)  # Décrypte le token
-        valeur = valeur_bytes.decode()  # Conversion bytes -> str
-        return f"Valeur décryptée : {valeur}"
+        f = Fernet(key.encode())
+        valeur_bytes = valeur.encode()
+        token = f.encrypt(valeur_bytes)
+        return f"Valeur encryptée : {token.decode()}"
     except Exception as e:
-        return f"Erreur lors du décryptage : {str(e)}"
+        return f"Erreur lors de l'encryptage : {str(e)}"
+
+@app.route('/decrypt', methods=['GET', 'POST'])
+def decryptage():
+    if request.method == 'POST':
+        key = request.form.get('key')
+        token = request.form.get('token')
+
+        if not key or not token:
+            return "Veuillez fournir une clé et un token pour le décryptage.", 400
+
+        try:
+            f = Fernet(key.encode())
+            token_bytes = token.encode()
+            valeur_bytes = f.decrypt(token_bytes)
+            valeur = valeur_bytes.decode()
+            return f"Valeur décryptée : {valeur}"
+        except Exception as e:
+            return f"Erreur lors du décryptage : {str(e)}"
+    
+    # Formulaire HTML pour le décryptage
+    return '''
+        <form method="POST">
+            Clé de déchiffrement : <input type="text" name="key"><br>
+            Token : <input type="text" name="token"><br>
+            <input type="submit" value="Déchiffrer">
+        </form>
+    '''
 
 if __name__ == "__main__":
     app.run(debug=True)
