@@ -1,5 +1,6 @@
 from cryptography.fernet import Fernet
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template
+import sqlite3
 
 app = Flask(__name__)
 
@@ -7,48 +8,26 @@ app = Flask(__name__)
 def hello_world():
     return render_template('hello.html')
 
-@app.route('/encrypt', methods=['POST'])
-def encryptage():
-    valeur = request.form.get('valeur')
-    key = request.form.get('key')
+# Génération d'une clé et création de l'objet Fernet
+key = Fernet.generate_key()
+f = Fernet(key)
 
-    if not valeur or not key:
-        return "Veuillez fournir une valeur et une clé pour l'encryptage.", 400
+@app.route('/encrypt/<string:valeur>')
+def encryptage(valeur):
+    valeur_bytes = valeur.encode()  # Conversion de la chaîne en bytes
+    token = f.encrypt(valeur_bytes)  # Encryptage de la valeur
+    return f"Valeur encryptée : {token.decode()}"
 
+@app.route('/decrypt/<string:token>')
+def decryptage(token):
     try:
-        f = Fernet(key.encode())
-        valeur_bytes = valeur.encode()
-        token = f.encrypt(valeur_bytes)
-        return f"Valeur encryptée : {token.decode()}"
+        # Conversion du token en bytes, puis décryptage
+        decrypted_bytes = f.decrypt(token.encode())
+        decrypted_value = decrypted_bytes.decode()
+        return f"Valeur décryptée : {decrypted_value}"
     except Exception as e:
-        return f"Erreur lors de l'encryptage : {str(e)}"
-
-@app.route('/decrypt', methods=['GET', 'POST'])
-def decryptage():
-    if request.method == 'POST':
-        key = request.form.get('key')
-        token = request.form.get('token')
-
-        if not key or not token:
-            return "Veuillez fournir une clé et un token pour le décryptage.", 400
-
-        try:
-            f = Fernet(key.encode())
-            token_bytes = token.encode()
-            valeur_bytes = f.decrypt(token_bytes)
-            valeur = valeur_bytes.decode()
-            return f"Valeur décryptée : {valeur}"
-        except Exception as e:
-            return f"Erreur lors du décryptage : {str(e)}"
-    
-    # Formulaire HTML pour le décryptage
-    return '''
-        <form method="POST">
-            Clé de déchiffrement : <input type="text" name="key"><br>
-            Token : <input type="text" name="token"><br>
-            <input type="submit" value="Déchiffrer">
-        </form>
-    '''
+        # En cas d'erreur (exemple : token invalide)
+        return f"Erreur lors du décryptage : {str(e)}", 400
 
 if __name__ == "__main__":
     app.run(debug=True)
